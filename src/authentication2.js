@@ -1,30 +1,42 @@
 const { AuthenticationService, JWTStrategy } = require('@feathersjs/authentication');
-const { LocalStrategy } = require('@feathersjs/authentication-local');
-const { expressOauth, OAuthStrategy } = require('@feathersjs/authentication-oauth');
 
-class GitHubStrategy extends OAuthStrategy {
-  async getEntityData(profile) {
-    const baseData = await super.getEntityData(profile);
+class JWTStrategy2 extends JWTStrategy {
+  async authenticate (authentication: AuthenticationRequest, params: Params) {
+    console.log("TESTING");
+    const { accessToken } = authentication;
+    const { entity } = this.configuration;
+
+    if (!accessToken) {
+      throw new NotAuthenticated('No access token');
+    }
+
+    const payload = await this.authentication.verifyAccessToken(accessToken, params.jwt);
+    const result = {
+      accessToken,
+      authentication: {
+        strategy: 'jwt',
+        accessToken,
+        payload
+      }
+    };
+
+    if (entity === null) {
+      return result;
+    }
+
+    const entityId = await this.getEntityId(result, params);
+    const value = await this.getEntity(entityId, params);
 
     return {
-      ...baseData,
-      // You can also set the display name to profile.name
-      name: profile.login,
-      // The GitHub profile image
-      avatar: profile.avatar_url,
-      // The user email address (if available)
-      email: profile.email
+      ...result,
+      [entity]: value
     };
   }
 }
 
 module.exports = app => {
-  const authentication = new AuthenticationService(app);
+  const authentication = app.service('authentication');
 
-  authentication.register('jwt', new JWTStrategy());
-  authentication.register('local', new LocalStrategy());
-  authentication.register('github', new GitHubStrategy());
+  authentication.register('jwt2', new JWTStrategy2());
 
-  app.use('/authentication', authentication);
-  app.configure(expressOauth());
 };
